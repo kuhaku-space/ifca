@@ -10,7 +10,7 @@ cd models/
 mkdir -p outputs
 mkdir -p outputs/fedavg_pretrained
 
-python -u main.py \
+uv run main.py \
     -dataset 'femnist' \
     -model 'cnn' \
     --num-rounds ${num_rounds} \

@@ -128,5 +128,8 @@ dmypy.json
 # Pyre type checker
 .pyre/
 
-data/
+mnist/data/
+femnist/fedavg_pretrain/data/femnist/data/
+femnist/fedavg_pretrain/data/femnist/meta/
 output/
+outputs/

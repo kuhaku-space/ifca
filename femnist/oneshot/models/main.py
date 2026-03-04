@@ -169,7 +169,7 @@ def main():
         "stats": stats
     }
 
-    best_accuracy = np.max([st['test']['accuracy'] for st in stats])
+    best_accuracy = np.max([st.get("test", {}).get("accuracy", 0.0) for st in stats])
     print("Best test accuracy : {}".format(best_accuracy))
 
     print("saving results to", args.save)

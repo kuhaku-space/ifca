@@ -8,7 +8,10 @@ import copy
 import random
 import time
 import pickle
-import tensorflow as tf
+import os
+os.environ['TF_USE_LEGACY_KERAS'] = '1'
+import tensorflow.compat.v1 as tf
+tf.disable_v2_behavior()
 
 import metrics.writer as metrics_writer
 
@@ -213,7 +216,7 @@ def main():
             stats.append(current_stats)
 
 
-    best_accuracy = np.max([st['test']['accuracy'] for st in stats])
+    best_accuracy = np.max([st.get("test", {}).get("accuracy", 0.0) for st in stats])
     print("Best test accuracy : {}".format(best_accuracy))
 
     # import ipdb; ipdb.set_trace()

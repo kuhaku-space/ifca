@@ -13,7 +13,7 @@ mkdir -p outputs
 resume="./outputs/fedavg_pretrained/checkpoint_c3_e1_lr0.004_sd0.pkl" # pretrained model
 
 num_groups="3" # ifca with group 3
-python -u main.py \
+uv run main.py \
     -dataset 'femnist' \
     -model 'cnn' \
     --num-rounds ${num_rounds} \
@@ -27,7 +27,7 @@ python -u main.py \
 
 
 num_groups="2" # ifca with group 2
-python -u main.py \
+uv run main.py \
     -dataset 'femnist' \
     -model 'cnn' \
     --num-rounds ${num_rounds} \
@@ -41,7 +41,7 @@ python -u main.py \
 
 
 num_groups="1" # ifca with group 1 case
-python -u main.py \
+uv run main.py \
     -dataset 'femnist' \
     -model 'cnn' \
     --num-rounds ${num_rounds} \
@@ -52,7 +52,3 @@ python -u main.py \
     --resume $resume \
     --save ./outputs/checkpoint_g${num_groups}_c${clients_per_round}_e${num_epochs}_lr${fedavg_lr}_sd${sd}.pkl \
     | tee -i ./outputs/main_g${num_groups}_c${clients_per_round}_e${num_epochs}_lr${fedavg_lr}_sd${sd}.txt
-
-
-
-

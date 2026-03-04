@@ -29,6 +29,9 @@ uv run <Python script>
 
 # Dependency management
 uv add <package>
+
+# If uv is not available
+mise trust
 ```
 
 ---

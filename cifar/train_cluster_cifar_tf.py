@@ -6,6 +6,7 @@ import itertools
 import pickle
 import copy
 
+os.environ['TF_XLA_FLAGS'] = '--tf_xla_auto_jit=0'
 import tensorflow.compat.v1 as tf
 tf.disable_eager_execution()
 
@@ -80,6 +81,7 @@ class TrainCIFARCluster(object):
 
         config = tf.ConfigProto()
         config.gpu_options.allow_growth = True
+        config.graph_options.optimizer_options.global_jit_level = tf.OptimizerOptions.OFF
         self.sess = tf.Session(config=config)
 
 
@@ -205,11 +207,8 @@ class TrainCIFARCluster(object):
         }
 
 
-        # transform ops
-        self.x_tr_pl = tf.placeholder(tf.float32, shape=(None, 32, 32, 3))
-        # with tf.device('/cpu:0'):
-        self.train_transform_op = train_transform(self.x_tr_pl)
-        self.test_transform_op = test_transform(self.x_tr_pl)
+        self.train_transform_fn = _train_transform_np
+        self.test_transform_fn = _test_transform_np
 
 
     def initialize_models(self):
@@ -669,12 +668,10 @@ class TrainCIFARCluster(object):
 
         if train:
             dataset = self.dataset['train']
-            transform_op = self.train_transform_op
-            # transform_op = self.test_transform_op
+            transform_fn = self.train_transform_fn
         else:
             dataset = self.dataset['test']
-            transform_op = self.test_transform_op
-
+            transform_fn = self.test_transform_fn
 
         X_b = dataset['data_loader'][0][indices]
         y_b = dataset['data_loader'][1][indices]
@@ -692,7 +689,7 @@ class TrainCIFARCluster(object):
 
         X_b2 = np.rot90(X_b, k=k, axes = (1,2)) # X_b: (bs, 32, 32, 3)
 
-        X_b3 = self.sess.run(transform_op, feed_dict = { self.x_tr_pl : X_b2 } )
+        X_b3 = transform_fn(X_b2)
 
         return (X_b3, y_b)
 
@@ -705,49 +702,48 @@ class TrainCIFARCluster(object):
 
 IMAGE_SIZE = 24
 
-def train_transform(reshaped_image):
-    # copied from cifar10_input.py / distorted_input()
+def _per_image_standardization_np(img):
+    """Standardize a single image (H, W, C) numpy array."""
+    mean = img.mean()
+    variance = np.mean((img - mean) ** 2)
+    min_variance = 1.0 / img.size
+    std = np.sqrt(max(variance, min_variance))
+    return (img - mean) / std
 
-    height = IMAGE_SIZE
-    width = IMAGE_SIZE
+def _train_transform_np(images):
+    """Numpy train augmentation: random crop, flip, brightness, contrast, standardization.
+    images: [N, 32, 32, 3] float32 in [0, 1]."""
+    N, H, W, C = images.shape
+    size = IMAGE_SIZE
+    out = np.empty((N, size, size, C), dtype=np.float32)
+    for i in range(N):
+        img = images[i].astype(np.float32)
+        # Random crop
+        y0 = np.random.randint(0, H - size + 1)
+        x0 = np.random.randint(0, W - size + 1)
+        img = img[y0:y0+size, x0:x0+size, :]
+        # Random horizontal flip
+        if np.random.random() < 0.5:
+            img = img[:, ::-1, :]
+        # Random brightness (max_delta=63)
+        img = img + np.random.uniform(-63, 63)
+        # Random contrast (lower=0.2, upper=1.8)
+        mean_val = img.mean()
+        img = (img - mean_val) * np.random.uniform(0.2, 1.8) + mean_val
+        out[i] = _per_image_standardization_np(img)
+    return out
 
-    # Image processing for training the network. Note the many random
-    # distortions applied to the image.
-
-    # Randomly crop a [height, width] section of the image.
-    distorted_image = tf.random_crop(reshaped_image, [tf.shape(reshaped_image)[0], height, width, 3])
-    # tf shape gives dynamic shape
-
-    # Randomly flip the image horizontally.
-    distorted_image = tf.image.random_flip_left_right(distorted_image)
-
-    # Because these operations are not commutative, consider randomizing
-    # the order their operation.
-    distorted_image = tf.image.random_brightness(distorted_image,
-                                               max_delta=63)
-    distorted_image = tf.image.random_contrast(distorted_image,
-                                             lower=0.2, upper=1.8)
-
-    # Subtract off the mean and divide by the variance of the pixels.
-    float_image = tf.image.per_image_standardization(distorted_image)
-
-    return float_image
-
-def test_transform(reshaped_image):
-    # copied from cifar10_input.py / input()
-
-    height = IMAGE_SIZE
-    width = IMAGE_SIZE
-
-    # Image processing for evaluation.
-    # Crop the central [height, width] of the image.
-    resized_image = tf.image.resize_image_with_crop_or_pad(reshaped_image,
-                                                         width, height)
-
-    # Subtract off the mean and divide by the variance of the pixels.
-    float_image = tf.image.per_image_standardization(resized_image)
-
-    return float_image
+def _test_transform_np(images):
+    """Numpy test preprocessing: center crop + standardization.
+    images: [N, 32, 32, 3] float32 in [0, 1]."""
+    N, H, W, C = images.shape
+    size = IMAGE_SIZE
+    y0 = (H - size) // 2
+    x0 = (W - size) // 2
+    out = images[:, y0:y0+size, x0:x0+size, :].astype(np.float32).copy()
+    for i in range(N):
+        out[i] = _per_image_standardization_np(out[i])
+    return out
 
 
 

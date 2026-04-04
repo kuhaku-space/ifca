@@ -6,6 +6,7 @@ import itertools
 import pickle
 import copy
 
+os.environ['TF_XLA_FLAGS'] = '--tf_xla_auto_jit=0'
 import tensorflow as tf
 
 import numpy as np
@@ -72,6 +73,7 @@ class TrainCIFARClusterLocal(TrainCIFARCluster):
 
         config = tf.ConfigProto()
         config.gpu_options.allow_growth = True
+        config.graph_options.optimizer_options.global_jit_level = tf.OptimizerOptions.OFF
         self.sess = tf.Session(config=config)
 
 
@@ -86,8 +88,8 @@ class TrainCIFARClusterLocal(TrainCIFARCluster):
 
     def setup_model(self):
         super().setup_model()
-        self.train_transform_op = train_transform2(self.x_tr_pl)
-        self.test_transform_op = test_transform2(self.x_tr_pl)
+        self.train_transform_fn = _train_transform2_np
+        self.test_transform_fn = _test_transform2_np
 
 
 
@@ -332,53 +334,13 @@ class TrainCIFARClusterLocal(TrainCIFARCluster):
             self.model_weights[m_i] = self.get_model_weights()
 
 
-def train_transform2(reshaped_image):
-    # copied from cifar10_input.py / distorted_input()
+def _train_transform2_np(images):
+    """Same as _train_transform_np but clips output to [0, 1]."""
+    return np.clip(_train_transform_np(images), 0, 1)
 
-    height = IMAGE_SIZE
-    width = IMAGE_SIZE
-
-    # Image processing for training the network. Note the many random
-    # distortions applied to the image.
-
-    # Randomly crop a [height, width] section of the image.
-    distorted_image = tf.random_crop(reshaped_image, [tf.shape(reshaped_image)[0], height, width, 3])
-    # tf shape gives dynamic shape
-
-    # Randomly flip the image horizontally.
-    distorted_image = tf.image.random_flip_left_right(distorted_image)
-
-    # Because these operations are not commutative, consider randomizing
-    # the order their operation.
-    distorted_image = tf.image.random_brightness(distorted_image,
-                                               max_delta=63)
-    distorted_image = tf.image.random_contrast(distorted_image,
-                                             lower=0.2, upper=1.8)
-
-    # Subtract off the mean and divide by the variance of the pixels.
-    float_image = tf.image.per_image_standardization(distorted_image)
-
-    float_image = tf.clip_by_value(float_image, 0, 1)
-
-    return float_image
-
-def test_transform2(reshaped_image):
-    # copied from cifar10_input.py / input()
-
-    height = IMAGE_SIZE
-    width = IMAGE_SIZE
-
-    # Image processing for evaluation.
-    # Crop the central [height, width] of the image.
-    resized_image = tf.image.resize_image_with_crop_or_pad(reshaped_image,
-                                                         width, height)
-
-    # Subtract off the mean and divide by the variance of the pixels.
-    float_image = tf.image.per_image_standardization(resized_image)
-
-    float_image = tf.clip_by_value(float_image, 0, 1)
-
-    return float_image
+def _test_transform2_np(images):
+    """Same as _test_transform_np but clips output to [0, 1]."""
+    return np.clip(_test_transform_np(images), 0, 1)
 
 
 

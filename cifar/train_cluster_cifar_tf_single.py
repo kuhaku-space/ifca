@@ -6,6 +6,7 @@ import itertools
 import pickle
 import copy
 
+os.environ['TF_XLA_FLAGS'] = '--tf_xla_auto_jit=0'
 import tensorflow as tf
 
 import numpy as np
@@ -77,6 +78,7 @@ class TrainCIFARClusterSingle(TrainCIFARCluster):
 
         config = tf.ConfigProto()
         config.gpu_options.allow_growth = True
+        config.graph_options.optimizer_options.global_jit_level = tf.OptimizerOptions.OFF
         self.sess = tf.Session(config=config)
 
 
